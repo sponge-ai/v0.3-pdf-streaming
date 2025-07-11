@@ -1,52 +1,41 @@
-import os
-from fastapi import FastAPI, File, UploadFile, Form
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.responses import FileResponse
+from typing import Optional
 from openai import OpenAI
-import tempfile
 from dotenv import load_dotenv
 load_dotenv()
 
 app = FastAPI()
-client = OpenAI()
 
 @app.get("/")
-def index():
+def read_root():
     return FileResponse("static/main.html")
 
-@app.post("/upload/")
-async def upload_pdf(file: UploadFile = File(...), query: str = Form("Summarize this PDF")):
-    # Save PDF temporarily
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(await file.read())
-        tmp_path = tmp.name
-
-    # Upload PDF to OpenAI
-    uploaded_file = client.files.create(
-        file=open(tmp_path, "rb"),
-        purpose="user_data"
+@app.post("/upload")
+async def post_response(
+    file: UploadFile = File(...), 
+    prompt: Optional[str] = Form("Summarize this file: ")
+):
+    client = OpenAI()
+    
+    file_response = client.files.create(
+        file = (file.filename, await file.read()),
+        purpose = "user_data"
     )
+    
+    file_id = file_response.id
 
-    # Run GPT with PDF + prompt
-    response = client.chat.completions.create(
-        model="gpt-4o",  # GPT-4o or similar if needed
-        messages=[
+    response = client.responses.create(
+        model = "gpt-4o",
+        input = [
             {
                 "role": "user",
                 "content": [
-                    {
-                        "type": "file",
-                        "file_id": uploaded_file.id
-                    },
-                    {
-                        "type": "text",
-                        "text": query
-                    }
+                    { "type": "input_text", "text": prompt },
+                    { "type": "input_file", "file_id": file_id }
                 ]
             }
         ]
     )
 
-    result = response.choices[0].message.content
-
-    # Return as HTML
-    return HTMLResponse(content=f"<html><body><h2>Result</h2><p>{result}</p></body></html>")
+    return response.output[0].content[0].text
