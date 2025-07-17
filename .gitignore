@@ -1,4 +1,5 @@
 node_modules
 venv
 **/.env*
-__pycache__
+__pycache__node_modules
+venv

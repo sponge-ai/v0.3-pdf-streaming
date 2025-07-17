@@ -1,11 +1,13 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from typing import Optional
 from openai import OpenAI
 from dotenv import load_dotenv
+import time
 load_dotenv()
 
 app = FastAPI()
+client = OpenAI()
 
 @app.get("/")
 def read_root():
@@ -16,8 +18,6 @@ async def post_response(
     file: UploadFile = File(...), 
     prompt: Optional[str] = Form("Summarize this file: ")
 ):
-    client = OpenAI()
-    
     file_response = client.files.create(
         file = (file.filename, await file.read()),
         purpose = "user_data"
@@ -35,7 +35,14 @@ async def post_response(
                     { "type": "input_file", "file_id": file_id }
                 ]
             }
-        ]
+        ],
+        stream=True
     )
 
-    return response.output[0].content[0].text
+    async def generate():
+        for event in response:
+            if event.type == "response.output_text.delta":
+                yield event.delta
+
+    return StreamingResponse(generate(), media_type="text/plain")
+    
