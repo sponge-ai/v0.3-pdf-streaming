@@ -1,6 +1,6 @@
 # README
 
-Added streaming capability with OpenAI Responses API and FastAPI StreamingResponse
+Added streaming with OpenAI Responses API and FastAPI StreamingResponse
 
 ```sh
 # create virtual env
